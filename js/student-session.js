@@ -445,6 +445,8 @@
       tickHandle = setInterval(tick, 1000);
     },
     isActive: isActive,
+    // Para actividad que la página no puede ver (p. ej. leer dentro de un iframe)
+    touch: touch,
     getStudent: function () { return store && store.student; },
     activeSeconds: function () { return store ? store.activeSec : 0; },
     openReport: openReport,

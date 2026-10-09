@@ -29,7 +29,7 @@
   // ───────── estado
   function fresh() {
     return {
-      v: 1, level: "easy", points: 0, bestStreak: 0, mastery: {}, recent: [], modes: {}, famKo: {}, famOk: {},
+      v: 1, level: "easy", points: 0, bestStreak: 0, mastery: {}, recent: [], modes: {}, famKo: {}, famOk: {}, comics: {},
       current: null, seenHelp: false,
       opts: { colors: true, sound: true, big: false, contrast: false, calm: false }
     };
@@ -58,7 +58,7 @@
     }
   }
   function show(id) {
-    ["screenHome", "screenGame", "screenEnd"].forEach(function (s) { $("#" + s).hidden = s !== id; });
+    ["screenHome", "screenGame", "screenComics", "screenEnd"].forEach(function (s) { $("#" + s).hidden = s !== id; });
     window.scrollTo({ top: 0 });
   }
   function renderTop() { $("#masteredVal").textContent = masteredCount(); $("#pointsVal").textContent = S.points; }
@@ -74,6 +74,9 @@
         var m = S.mastery[z];
         var cls = "el f-" + e.fam + (act ? "" : " dim") + (opts.marks && opts.marks[z] ? " " + opts.marks[z] : "") +
           (m && m.m ? " mastered" : "") + (opts.mini && m && (m.ok || m.ko) ? " seen" : "");
+        var cs = S.comics[z];
+        if ((opts.mini || opts.comics) && cs) cls += cs.done ? " read" : opts.comics && cs.sec ? " reading" : "";
+        if (opts.filter && e.fam !== opts.filter) cls += " filtered";
         var label = opts.view === "blank" ? (e.group ? "Casilla del grupo " + e.group + ", periodo " + e.period : "Casilla del bloque f") : e.name + " (" + e.sym + "), número atómico " + z;
         html += '<button class="' + cls + '" data-z="' + z + '"' + (act && !opts.mini && !opts.locked ? "" : " disabled") + ' aria-label="' + esc(label) + '">' +
           (opts.view === "blank" ? "" : '<span class="z">' + z + '</span><span class="s">' + e.sym + "</span>") + "</button>";
@@ -112,7 +115,7 @@
       var m = MODES[k], st = S.modes[k], best = "";
       if (st && st.best[S.level] != null) best = "🏆 " + st.best[S.level];
       return '<button class="mode' + (k === "donde" ? " classic" : "") + '" data-mode="' + k + '"><span class="best">' + best + '</span><span class="ico">' + m.ico + "</span><h3>" + m.name + "</h3><p>" + m.desc + "</p></button>";
-    }).join("");
+    }).join("") + '<button class="mode comics" data-comics><span class="best">📖 ' + comicsRead().length + '/118</span><span class="ico">📚</span><h3>Elemental Cómics</h3><p>Lee el cómic de cada elemento. 5 minutos de lectura + lo que has aprendido = 15 puntos.</p></button>';
     var n = masteredCount(), easyN = P.levels.easy.ids.filter(function (z) { return S.mastery[z] && S.mastery[z].m; }).length;
     $("#masterySub").textContent = "⭐ " + n + " dominados · " + easyN + " de los " + P.levels.easy.ids.length + " del nivel fácil";
     $("#masteryTable").innerHTML = tableHTML({ view: "symbols", mini: true });
@@ -257,7 +260,8 @@
       "<li><span>Familia</span><b>" + fam.label + "</b></li><li><span>Tipo</span><b>" + (t.unknown ? "por confirmar" : t.type) + "</b></li>" +
       (t.valence ? "<li><span>Electrones de valencia</span><b>" + t.valence + "</b></li>" : "") + "</ul>" +
       (LATIN[t.z] ? '<p class="fact">Su símbolo viene del latín <i>' + LATIN[t.z] + "</i>.</p>" : "") +
-      (t.fact ? '<p class="fact">' + esc(t.fact) + "</p>" : "");
+      (t.fact ? '<p class="fact">' + esc(t.fact) + "</p>" : "") +
+      (window.COMICS && COMICS[t.z] ? '<button class="ghost-btn comic-btn" data-comic="' + t.z + '">📖 Leer su cómic' + (S.comics[t.z] && S.comics[t.z].done ? " (ya leído)" : "") + "</button>" : "");
   }
 
   // ───────── corregir
@@ -403,8 +407,10 @@
 
   // ───────── navegación, ayuda y opciones
   document.addEventListener("click", function (e) {
-    var t = e.target.closest("[data-go],[data-again],[data-ss-open]"); if (!t) return;
-    if (t.hasAttribute("data-go")) renderHome();
+    var t = e.target.closest("[data-go],[data-again],[data-ss-open],[data-comics],[data-comic]"); if (!t) return;
+    if (t.hasAttribute("data-comics")) renderComics();
+    else if (t.hasAttribute("data-comic")) openReader(+t.dataset.comic);
+    else if (t.hasAttribute("data-go")) renderHome();
     else if (t.hasAttribute("data-again")) startRound(t.dataset.again);
     else StudentSession.openReport();
   });
@@ -414,7 +420,7 @@
   $("#helpModal").addEventListener("click", function (e) {
     if (e.target === this || e.target.closest("[data-close]")) { this.hidden = true; S.seenHelp = true; save(); }
   });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { $("#helpModal").hidden = true; $("#a11yMenu").hidden = true; } });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { $("#helpModal").hidden = true; $("#a11yMenu").hidden = true; if (!$("#reader").hidden) closeReader(); } });
   $("#a11yBtn").addEventListener("click", function (e) {
     e.stopPropagation(); var m = $("#a11yMenu"); m.hidden = !m.hidden; this.setAttribute("aria-expanded", String(!m.hidden));
   });
@@ -435,10 +441,112 @@
 
   // ───────── reloj del modo ¿Dónde está? (solo cuenta el tiempo activo)
   setInterval(function () {
-    if (!R || R.mode !== "donde" || $("#screenGame").hidden || !StudentSession.isActive()) return;
+    if (!R || R.mode !== "donde" || $("#screenGame").hidden || !$("#reader").hidden || !StudentSession.isActive()) return;
     R.time--; updateStats();
     if (R.time % 5 === 0) save();
     if (R.time <= 0) endRound();
+  }, 1000);
+
+  // ───────── Elemental Cómics
+  var READ_MIN = 300, STILL_EVERY = 180, COMIC_POINTS = 15;
+  var reader = { z: null, run: 0, still: false, reflect: false, paused: false }, comicFilter = null;
+  function cstat(z) { return S.comics[z] || (S.comics[z] = { sec: 0, done: false, text: "", act: false }); }
+  function comicsRead() { return Object.keys(S.comics).filter(function (z) { return S.comics[z].done; }).map(Number).sort(function (a, b) { return a - b; }); }
+  function mmss(sec) { return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0"); }
+  function stateOf(e) {
+    if (e.z === 35 || e.z === 80) return "Líquido";
+    if ([1, 2, 7, 8, 9, 10, 17, 18, 36, 54, 86].indexOf(e.z) >= 0) return "Gas";
+    return e.z >= 100 ? "Por confirmar" : "Sólido";
+  }
+
+  function renderComics() {
+    $("#comicsCount").textContent = "📖 " + comicsRead().length + " de 118 leídos";
+    $("#comicFilters").innerHTML = '<button aria-pressed="' + !comicFilter + '" data-cf="">Todos</button>' + Object.keys(P.families).map(function (k) {
+      return '<button style="--fc:var(--f-' + k + ')" aria-pressed="' + (comicFilter === k) + '" data-cf="' + k + '">' + P.families[k].label + "</button>";
+    }).join("");
+    $("#comicTable").innerHTML = tableHTML({ view: "symbols", comics: true, filter: comicFilter });
+    show("screenComics");
+  }
+  $("#comicFilters").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-cf]"); if (!b) return;
+    comicFilter = b.dataset.cf || null; renderComics();
+  });
+  $("#comicTable").addEventListener("click", function (e) {
+    var b = e.target.closest(".el"); if (b) openReader(+b.dataset.z);
+  });
+
+  function openReader(z) {
+    var e = Z[z], c = window.COMICS && COMICS[z]; if (!c) return;
+    reader = { z: z, run: 0, still: false, reflect: false, paused: false };
+    var st = cstat(z);
+    $("#readerInfo").innerHTML =
+      '<div class="tile f-' + e.fam + '"><span class="z">' + z + '</span><span class="s">' + e.sym + '</span><span class="n">' + esc(e.name) + "</span></div>" +
+      '<h2 id="readerTitle">' + esc(e.name) + '</h2><span class="badge">' + P.families[e.fam].label + "</span>" +
+      '<p class="syn">«' + esc(c.s) + "»</p>" +
+      '<ul class="facts"><li><span>Número atómico</span><b>' + z + "</b></li><li><span>Estado (a 25 °C)</span><b>" + stateOf(e) + "</b></li>" +
+      (e.group ? "<li><span>Grupo · periodo</span><b>" + e.group + " · " + e.period + "</b></li>" : "") + "</ul>" +
+      '<div class="links">' + (c.a ? '<a class="act-link" href="' + esc(c.a) + '" target="_blank" rel="noopener" data-act="' + z + '">📝 Ver actividades</a>' : "") +
+      '<a class="drive-link" href="https://drive.google.com/file/d/' + c.c + '/view" target="_blank" rel="noopener">¿No se ve el cómic? Ábrelo en Drive<br><small>(allí no cuenta el tiempo de lectura)</small></a></div>';
+    $("#readerFrame").src = "https://drive.google.com/file/d/" + c.c + "/preview";
+    $("#still").hidden = true;
+    $("#reader").hidden = false;
+    if (!st.sec && !st.done) toast("📖 Lee al menos 5 minutos para poder ganar los puntos.");
+    renderReaderBar();
+  }
+  function closeReader() {
+    reader.z = null; $("#reader").hidden = true; $("#readerFrame").src = "about:blank"; save();
+    if (!$("#screenComics").hidden) renderComics();
+    if (!$("#screenHome").hidden) renderHome();
+    if (!$("#screenGame").hidden && R && R.q) renderGame();
+  }
+  function renderReaderBar() {
+    if (reader.z == null) return;
+    var st = cstat(reader.z), e = Z[reader.z], bar;
+    if (st.done) {
+      bar = '<div class="rtime">✅ Ya has leído este cómic y ganaste los puntos.<small>Tu reflexión: «' + esc(st.text) + '»</small></div><button class="main-btn" data-rclose>Cerrar</button>';
+    } else if (reader.reflect) {
+      bar = '<div class="reflect"><label for="reflectTxt"><b>¿Qué es lo más interesante que has aprendido sobre el ' + esc(e.name.toLowerCase()) + '?</b></label>' +
+        '<textarea id="reflectTxt" rows="2" maxlength="400"></textarea>' +
+        '<div class="reflect-row"><small id="reflectMsg">Mínimo 20 caracteres. Aparecerá en tu informe.</small><button class="ghost-btn" data-rclose>Dejar de leer (sin puntos)</button><button class="main-btn" id="reflectOk">Guardar y ganar ' + COMIC_POINTS + " puntos</button></div></div>";
+    } else {
+      var full = st.sec >= READ_MIN;
+      bar = '<div class="rtime"><small>Tiempo de lectura: <b>' + mmss(st.sec) + "</b> de 5:00" + (reader.paused && !reader.still ? " · en pausa (vuelve a esta pestaña)" : "") + (full ? " · ¡ya puedes terminar!" : "") + "</small>" +
+        '<div class="rbar' + (full ? " full" : "") + '"><div style="width:' + Math.min(100, pct(st.sec, READ_MIN)) + '%"></div></div></div>' +
+        '<button class="ghost-btn" data-rclose>Dejar de leer (sin puntos)</button><button class="main-btn" id="finishRead"' + (full ? ">He terminado de leer" : " disabled>🔒 Faltan " + mmss(READ_MIN - st.sec)) + "</button>";
+    }
+    $("#readerBar").innerHTML = bar;
+  }
+  $("#reader").addEventListener("click", function (e) {
+    var t = e.target;
+    if (t.closest("[data-rclose]")) { closeReader(); return; }
+    if (t.closest("[data-act]")) { cstat(reader.z).act = true; save(); return; }
+    if (t.closest("#stillBtn")) { reader.still = false; reader.run = 0; $("#still").hidden = true; StudentSession.touch(); renderReaderBar(); return; }
+    if (t.closest("#finishRead")) { reader.reflect = true; renderReaderBar(); $("#reflectTxt").focus(); return; }
+    if (t.closest("#reflectOk")) {
+      var txt = $("#reflectTxt").value.trim();
+      if (txt.length < 20) { $("#reflectMsg").textContent = "Escribe al menos 20 caracteres (llevas " + txt.length + ")."; $("#reflectMsg").style.color = "var(--ko)"; return; }
+      var st = cstat(reader.z);
+      st.done = true; st.text = txt; st.at = Date.now();
+      S.points += COMIC_POINTS; renderTop(); save();
+      play("ok"); toast("📖 ¡Cómic leído! +" + COMIC_POINTS + " puntos"); confetti();
+      renderReaderBar();
+    }
+  });
+  // Solo cuenta el tiempo con el cómic abierto y la pestaña activa.
+  // La app no ve los clics dentro del cómic: por eso pregunta cada 3 minutos si sigues leyendo.
+  setInterval(function () {
+    if (reader.z == null || $("#reader").hidden) return;
+    var st = cstat(reader.z);
+    if (reader.reflect) { StudentSession.touch(); return; }
+    var frame = $("#readerFrame");
+    var active = !reader.still && document.visibilityState === "visible" && (document.hasFocus() || document.activeElement === frame);
+    if (active) {
+      st.sec++; reader.run++; StudentSession.touch();
+      if (reader.run >= STILL_EVERY) { reader.still = true; $("#still").hidden = false; }
+      if (st.sec % 5 === 0) save();
+    }
+    reader.paused = !active;
+    if (!st.done) renderReaderBar();
   }, 1000);
 
   // ───────── informe
@@ -457,12 +565,21 @@
     var d = S.modes.donde;
     if (d && Object.keys(d.best).length) rows.push(["Récord en ¿Dónde está?", ["easy", "medium", "hard"].filter(function (k) { return d.best[k] != null; }).map(function (k) { return P.levels[k].name + ": " + d.best[k]; }).join(" · ")]);
 
+    var read = comicsRead(), readSec = 0;
+    Object.keys(S.comics).forEach(function (z) { readSec += S.comics[z].sec || 0; });
+    if (read.length || readSec) {
+      rows.push(["Cómics leídos (5 min + reflexión)", read.length + (read.length ? " (" + read.map(function (z) { return Z[z].sym; }).join(", ") + ")" : "")]);
+      rows.push(["Tiempo leyendo cómics", StudentSession.formatTime(readSec)]);
+    }
     var failed = Object.keys(S.mastery).filter(function (z) { return S.mastery[z].ko > 0; })
       .sort(function (a, b) { return S.mastery[b].ko - S.mastery[a].ko; });
     var sections = [];
     if (failed.length) sections.push({ title: "Elementos que más ha fallado", lines: failed.slice(0, 8).map(function (z) { var m = S.mastery[z]; return Z[z].sym + " (" + Z[z].name + "): " + m.ko + (m.ko === 1 ? " error" : " errores") + ", " + m.ok + (m.ok === 1 ? " acierto" : " aciertos"); }) });
     var mast = Object.keys(S.mastery).filter(function (z) { return S.mastery[z].m; }).map(function (z) { return Z[z].sym; });
     if (mast.length) sections.push({ title: "Elementos dominados", lines: [mast.join(", ")] });
+    if (read.length) sections.push({ title: "Reflexiones sobre los cómics", lines: read.map(function (z) { var c = S.comics[z]; return Z[z].sym + " (" + Z[z].name + ", " + Math.round(c.sec / 60) + " min de lectura" + (c.act ? ", abrió las actividades" : "") + "): «" + c.text + "»"; }) });
+    var started = Object.keys(S.comics).filter(function (z) { return !S.comics[z].done && S.comics[z].sec > 0; });
+    if (started.length) sections.push({ title: "Cómics empezados sin terminar", lines: [started.map(function (z) { return Z[z].sym + " (" + mmss(S.comics[z].sec) + ")"; }).join(", ")] });
 
     var strengths = [], improve = [], next = [];
     played.forEach(function (k) {
@@ -471,6 +588,7 @@
       else if (tot >= 5 && p < 60) improve.push("En «" + MODES[k].name + "» aciertas el " + p + " %: vuelve a practicarlo.");
     });
     if (n >= 10) strengths.push("Ya dominas " + n + " elementos.");
+    if (read.length >= 3) strengths.push("Has leído " + read.length + " cómics de elementos.");
     Object.keys(S.famOk).forEach(function (f) { if (S.famOk[f] >= 4 && !(S.famKo[f] > 0)) strengths.push("No has fallado ninguna pregunta sobre los " + P.families[f].name + "."); });
     Object.keys(S.famKo).sort(function (a, b) { return S.famKo[b] - S.famKo[a]; }).slice(0, 2).forEach(function (f) {
       if (S.famKo[f] >= 2) improve.push("Repasa los " + P.families[f].name + ": " + S.famKo[f] + " errores.");
@@ -482,6 +600,9 @@
     if (notPlayed.length) next.push("Prueba el modo «" + MODES[notPlayed[0]].name + "».");
     if (S.level === "easy" && easyN >= 40) next.push("Ya puedes subir al nivel Intermedio.");
     else if (S.level === "medium" && pct(totOk, totOk + totKo) >= 80) next.push("Atrévete con el nivel Difícil.");
+    var toRead = rep.filter(function (z) { return !(S.comics[z] && S.comics[z].done); });
+    if (toRead.length) next.push("Lee el cómic " + toRead.slice(0, 2).map(function (z) { return "del " + Z[z].name.toLowerCase(); }).join(" y ") + ": te ayudará a recordarlo.");
+    else if (!read.length) next.push("Lee el cómic de algún elemento en la sección Elemental Cómics.");
     if (!next.length) next.push("Sigue jugando hasta que tu tabla quede iluminada en dorado.");
     return { rows: rows, sections: sections, feedback: { strengths: strengths, improve: improve, next: next } };
   }
@@ -489,6 +610,7 @@
   // ───────── arranque
   function start() {
     S = load() || fresh();
+    S.comics = S.comics || {};
     applyOpts();
     renderTop();
     R = S.current;

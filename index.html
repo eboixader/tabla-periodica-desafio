@@ -85,6 +85,18 @@
       </div>
     </section>
 
+    <!-- CÓMICS -->
+    <section class="screen" id="screenComics" hidden>
+      <div class="game-head">
+        <button class="ghost-btn" data-go="home">← Inicio</button>
+        <div class="game-title"><h2>📚 Elemental Cómics</h2><span class="badge" id="comicsCount"></span></div>
+        <div></div>
+      </div>
+      <p class="comics-intro">Pulsa un elemento para leer su cómic. Si lo lees al menos <b>5 minutos</b> y escribes qué has aprendido, ganas <b>15 puntos</b>. Puedes dejar de leer cuando quieras (sin puntos) y continuar otro día: el tiempo leído se guarda.</p>
+      <div class="filters" id="comicFilters"></div>
+      <div class="table-wrap"><div class="ptable" id="comicTable"></div></div>
+    </section>
+
     <!-- FIN DE RONDA -->
     <section class="screen" id="screenEnd" hidden>
       <div class="end-card" id="endCard"></div>
@@ -104,6 +116,7 @@
         <li><b>👪 Familias</b> Marca todos los elementos de una familia.</li>
         <li><b>⚙️ ¿Metal o no metal?</b> Clasifica cada elemento.</li>
         <li><b>🕵️ Elemento misterioso</b> Descúbrelo con el menor número de pistas.</li>
+        <li><b>📚 Cómics</b> Lee el cómic de cada elemento: con 5 minutos de lectura y una frase sobre lo que has aprendido ganas 15 puntos.</li>
       </ul>
       <p class="help-tip">🔥 Si aciertas 5 seguidas, ganas puntos extra. ⭐ Cada elemento que aciertes 3 veces seguidas queda <b>dominado</b> y se ilumina en tu tabla.</p>
       <p class="help-tip">🔁 Los elementos que fallas vuelven a salir más a menudo, para que los repases.</p>
@@ -112,11 +125,32 @@
     </div>
   </div>
 
+  <!-- Lector de cómics -->
+  <div class="modal reader" id="reader" hidden role="dialog" aria-modal="true" aria-labelledby="readerTitle">
+    <div class="reader-card">
+      <div class="reader-info" id="readerInfo"></div>
+      <div class="reader-main">
+        <iframe id="readerFrame" title="Cómic del elemento" allow="autoplay"></iframe>
+        <div class="still" id="still" hidden>
+          <p>⏸ ¿Sigues leyendo?</p>
+          <button class="main-btn" id="stillBtn">Sí, sigo leyendo</button>
+        </div>
+      </div>
+      <div class="reader-bar" id="readerBar"></div>
+    </div>
+  </div>
+
+  <footer class="credits">
+    <p><b>Elemental Cómics</b> © 2026 CSI Flors · Creado por Ernest Boixader. Los cómics se han creado con la IA de NotebookLM.</p>
+    <p>Licencia <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.es" target="_blank" rel="noopener">Creative Commons Atribución-NoComercial-CompartirIgual 4.0 Internacional</a>.</p>
+  </footer>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="js/student-session.js"></script>
   <script src="js/elements.js"></script>
+  <script src="js/comics.js"></script>
   <script src="js/game.js"></script>
 </body>
 </html>
