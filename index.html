@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Desafío de la Tabla Periódica</title>
+  <meta name="description" content="Juego para aprender la tabla periódica: posición, símbolos, grupos, periodos y familias.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Montserrat:wght@600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/student-session.css">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="bg" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <button class="brand" id="homeBtn" title="Inicio">
+      <span class="brand-tile" aria-hidden="true"><small>1</small>H</span>
+      <span class="brand-text">Desafío <b>Tabla Periódica</b></span>
+    </button>
+    <div class="chips">
+      <span class="chip" title="Elementos que dominas (3 aciertos seguidos)">⭐ <b id="masteredVal">0</b>/118</span>
+      <span class="chip" title="Puntos totales">🏅 <b id="pointsVal">0</b></span>
+      <span class="chip" title="Alumno/a y grupo">👤 <span data-ss="student">—</span></span>
+      <span class="chip" title="Tiempo de trabajo activo (se para si dejas la app)">⏱ <span data-ss="time">00:00</span></span>
+    </div>
+    <div class="tools">
+      <button class="icon-btn" id="helpBtn" title="Instrucciones" aria-label="Instrucciones">?</button>
+      <button class="icon-btn" id="a11yBtn" title="Opciones" aria-label="Opciones de accesibilidad y sonido" aria-expanded="false">Aa</button>
+      <button class="report-btn" data-ss="report">📄 <span>Informe</span></button>
+    </div>
+    <div class="a11y-menu" id="a11yMenu" hidden>
+      <label><input type="checkbox" id="optColors"> 🎨 Colores de familia</label>
+      <label><input type="checkbox" id="optSound"> 🔊 Sonido</label>
+      <label><input type="checkbox" id="optBig"> 🔠 Letra grande</label>
+      <label><input type="checkbox" id="optContrast"> ◐ Alto contraste</label>
+      <label><input type="checkbox" id="optMotion"> 🌙 Menos animaciones</label>
+    </div>
+  </header>
+
+  <main>
+    <!-- INICIO -->
+    <section class="screen" id="screenHome" hidden>
+      <div class="hero">
+        <h1>Desafío de la Tabla Periódica</h1>
+        <p>Elige el nivel y el modo de juego. Cada elemento que aciertes <b>3 veces seguidas</b> se ilumina en tu tabla.</p>
+      </div>
+
+      <h2 class="sec-title">1 · Nivel</h2>
+      <div class="levels" id="levels" role="radiogroup" aria-label="Nivel"></div>
+
+      <h2 class="sec-title">2 · Modo de juego</h2>
+      <div class="modes" id="modes"></div>
+
+      <h2 class="sec-title">Tu tabla <small id="masterySub"></small></h2>
+      <div class="table-wrap"><div class="ptable mini" id="masteryTable"></div></div>
+    </section>
+
+    <!-- JUEGO -->
+    <section class="screen" id="screenGame" hidden>
+      <div class="game-head">
+        <button class="ghost-btn" data-go="home">← Inicio</button>
+        <div class="game-title">
+          <h2 id="gameMode"></h2>
+          <span class="badge" id="gameLevel"></span>
+        </div>
+        <div class="stats">
+          <div class="stat" id="statClock"><span>Tiempo</span><b id="clockVal">05:00</b></div>
+          <div class="stat" id="statQ"><span>Pregunta</span><b id="qVal">1/10</b></div>
+          <div class="stat"><span>Puntos</span><b id="scoreVal">0</b></div>
+          <div class="stat"><span>Racha</span><b id="streakVal">0</b></div>
+        </div>
+      </div>
+
+      <div class="prompt" id="prompt" aria-live="polite"></div>
+      <div class="answer" id="answer"></div>
+
+      <div class="play-area">
+        <div class="table-col" id="tableCol">
+          <div class="table-wrap"><div class="ptable" id="gameTable"></div></div>
+          <div class="legend" id="legend"></div>
+        </div>
+        <aside class="ficha" id="ficha" aria-live="polite"></aside>
+      </div>
+    </section>
+
+    <!-- FIN DE RONDA -->
+    <section class="screen" id="screenEnd" hidden>
+      <div class="end-card" id="endCard"></div>
+    </section>
+  </main>
+
+  <!-- Instrucciones -->
+  <div class="modal" id="helpModal" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="modal-card">
+      <button class="ss-x" data-close aria-label="Cerrar">✕</button>
+      <h2 id="helpTitle">🧪 Cómo se juega</h2>
+      <p>Elige un <b>nivel</b> (Fácil, Intermedio o Difícil) y un <b>modo</b>:</p>
+      <ul class="help-list">
+        <li><b>📍 ¿Dónde está?</b> Te digo el nombre y pulsas su casilla. Tienes 5 minutos.</li>
+        <li><b>🔤 Símbolos</b> Escribe el símbolo de un elemento o elige su nombre.</li>
+        <li><b>🧭 Grupo y periodo</b> Localiza elementos por su grupo (columna) y periodo (fila).</li>
+        <li><b>👪 Familias</b> Marca todos los elementos de una familia.</li>
+        <li><b>⚙️ ¿Metal o no metal?</b> Clasifica cada elemento.</li>
+        <li><b>🕵️ Elemento misterioso</b> Descúbrelo con el menor número de pistas.</li>
+      </ul>
+      <p class="help-tip">🔥 Si aciertas 5 seguidas, ganas puntos extra. ⭐ Cada elemento que aciertes 3 veces seguidas queda <b>dominado</b> y se ilumina en tu tabla.</p>
+      <p class="help-tip">🔁 Los elementos que fallas vuelven a salir más a menudo, para que los repases.</p>
+      <p class="help-tip">📄 Cuando quieras, pulsa <b>Informe</b>, completa la autoevaluación, descarga el PDF y entrégalo en Classroom. ⏱ Solo cuenta el tiempo en que trabajas.</p>
+      <button class="main-btn" data-close>¡Entendido!</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="js/student-session.js"></script>
+  <script src="js/elements.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
