@@ -10,7 +10,9 @@
     posicion: { name: "Grupo y periodo", ico: "🧭", desc: "Localiza elementos por su columna (grupo) y su fila (periodo).", total: 10 },
     familias: { name: "Familias", ico: "👪", desc: "Marca todos los elementos de una familia.", total: 5 },
     metales: { name: "¿Metal o no metal?", ico: "⚙️", desc: "Clasifica cada elemento: metal, no metal o semimetal.", total: 10 },
-    misterio: { name: "Elemento misterioso", ico: "🕵️", desc: "Descúbrelo usando el menor número de pistas.", total: 5 }
+    misterio: { name: "Elemento misterioso", ico: "🕵️", desc: "Descúbrelo usando el menor número de pistas.", total: 5 },
+    config: { name: "Configuración electrónica", ico: "⚛️", desc: "Coloca cada elemento en la tabla a partir de su configuración electrónica.", total: 10, tag: "4.º ESO · Bach." },
+    escribe: { name: "Escribe la configuración", ico: "✍️", desc: "Reto: escribe tú la configuración electrónica de cada elemento.", total: 10, tag: "4.º ESO · Bach." }
   };
   var DONDE_TIME = 300;
   // Símbolos que no salen del nombre en castellano
@@ -77,9 +79,10 @@
         var cs = S.comics[z];
         if ((opts.mini || opts.comics) && cs) cls += cs.done ? " read" : opts.comics && cs.sec ? " reading" : "";
         if (opts.filter && e.fam !== opts.filter) cls += " filtered";
+        if (opts.view === "blank" && opts.reveal && opts.reveal.indexOf(z) >= 0) cls += " placed";
         var label = opts.view === "blank" ? (e.group ? "Casilla del grupo " + e.group + ", periodo " + e.period : "Casilla del bloque f") : e.name + " (" + e.sym + "), número atómico " + z;
         html += '<button class="' + cls + '" data-z="' + z + '"' + (act && !opts.mini && !opts.locked ? "" : " disabled") + ' aria-label="' + esc(label) + '">' +
-          (opts.view === "blank" ? "" : '<span class="z">' + z + '</span><span class="s">' + e.sym + "</span>") + "</button>";
+          (opts.view === "blank" && !(opts.reveal && opts.reveal.indexOf(z) >= 0) ? "" : '<span class="z">' + z + '</span><span class="s">' + e.sym + "</span>") + "</button>";
       });
     });
     return html;
@@ -114,7 +117,7 @@
     $("#modes").innerHTML = Object.keys(MODES).map(function (k) {
       var m = MODES[k], st = S.modes[k], best = "";
       if (st && st.best[S.level] != null) best = "🏆 " + st.best[S.level];
-      return '<button class="mode' + (k === "donde" ? " classic" : "") + '" data-mode="' + k + '"><span class="best">' + best + '</span><span class="ico">' + m.ico + "</span><h3>" + m.name + "</h3><p>" + m.desc + "</p></button>";
+      return '<button class="mode' + (k === "donde" ? " classic" : "") + '" data-mode="' + k + '"><span class="best">' + best + '</span><span class="ico">' + m.ico + "</span>" + (m.tag ? '<span class="tag">' + m.tag + "</span>" : "") + "<h3>" + m.name + "</h3><p>" + m.desc + "</p></button>";
     }).join("") + '<button class="mode comics" data-comics><span class="best">📖 ' + comicsRead().length + '/118</span><span class="ico">📚</span><h3>Elemental Cómics</h3><p>Lee el cómic de cada elemento. 5 minutos de lectura + lo que has aprendido = 15 puntos.</p></button>';
     var n = masteredCount(), easyN = P.levels.easy.ids.filter(function (z) { return S.mastery[z] && S.mastery[z].m; }).length;
     $("#masterySub").textContent = "⭐ " + n + " dominados · " + easyN + " de los " + P.levels.easy.ids.length + " del nivel fácil";
@@ -175,6 +178,21 @@
         "Está en el grupo " + t.group + "."
       ];
     }
+    if (mode === "config") {
+      if (R.quizNext) {
+        R.quizNext = false;
+        var cand = (R.placed || []).slice(-5).filter(function (z) { return attText(z); });
+        if (cand.length) {
+          var tz = cand[Math.floor(Math.random() * cand.length)];
+          var pool = shuffle((R.placed || []).filter(function (z) { return z !== tz; }));
+          shuffle(lvl().ids).forEach(function (z) { if (pool.length < 3 && z !== tz && pool.indexOf(z) < 0) pool.push(z); });
+          q.kind = "attention"; q.t = tz; q.options = shuffle([tz].concat(pool.slice(0, 3))); q.question = attQuestion(tz);
+        }
+      }
+      if (q.kind !== "attention") { t = pick(); q.kind = "place"; q.t = t.z; }
+    } else if (mode === "escribe") {
+      t = pick(function (e) { return e.z <= 103; }); q.kind = "write"; q.t = t.z;
+    }
     R.q = q; save();
     renderGame();
   }
@@ -199,6 +217,11 @@
     else if (q.kind === "family") p = 'Marca en la tabla todos los<span class="big">' + esc(P.families[q.fam].name) + "</span>";
     else if (q.kind === "type3") p = '¿Metal, no metal o semimetal?<span class="big">' + esc(t.name) + " (" + t.sym + ")</span>";
     else if (q.kind === "mystery") p = "¿Qué elemento es? Púlsalo en la tabla." + '<ul class="clues">' + q.clues.slice(0, q.shown).map(function (c) { return "<li>" + esc(c) + "</li>"; }).join("") + "</ul>";
+    if (q.kind === "place") p = "Coloca en la tabla el elemento con esta configuración" +
+      '<div class="cfg-card" draggable="true" id="cfgCard"><span>' + (q.done ? t.sym + " ·" : "¿?") + "</span><b>" + CFG.forLevel(t.z, R.level) + "</b></div>" +
+      '<small class="cfg-hint">Pulsa su casilla o arrastra la tarjeta hasta ella.</small>';
+    else if (q.kind === "attention") p = '🧠 Pregunta de atención<span class="big att">' + esc(q.question) + "</span>";
+    else if (q.kind === "write") p = 'Escribe la configuración electrónica de<span class="big">' + esc(t.name) + " (" + t.sym + ") · Z = " + t.z + "</span>";
     $("#prompt").innerHTML = p;
 
     // zona de respuesta
@@ -210,22 +233,25 @@
       else if (q.kind === "valence") a = [1, 2, 3, 4, 5, 6, 7, 8].map(function (v) { return '<button class="opt-btn" style="min-width:56px;flex:0" data-val="' + v + '">' + v + "</button>"; }).join("");
       else if (q.kind === "type3") a = ["metal", "no metal", "semimetal"].map(function (v) { return '<button class="opt-btn" data-type="' + v + '">' + v[0].toUpperCase() + v.slice(1) + "</button>"; }).join("");
       else if (q.kind === "family") a = '<button class="main-btn" id="famBtn">Comprobar (' + q.sel.length + " marcados)</button>";
+      else if (q.kind === "attention") a = q.options.map(function (z) { return '<button class="opt-btn" data-att="' + z + '">' + Z[z].sym + " · " + esc(Z[z].name) + "</button>"; }).join("");
+      else if (q.kind === "write") a = '<form id="cfgForm" class="cfg-form"><input id="cfgInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="1s2 2s2 2p6 …  o  [Ne] 3s1" aria-label="Configuración electrónica"><button class="main-btn">Comprobar</button></form>' +
+        '<p class="answer-help">Escribe los exponentes como números normales (2p6). Puedes abreviar con el gas noble: [Ar] 4s2 3d6.</p>';
       else if (q.kind === "mystery") a = q.shown < q.clues.length ? '<button class="ghost-btn" id="clueBtn">🔎 Otra pista (vale menos puntos)</button>' : "";
     } else if (mode !== "donde") {
-      a = '<button class="main-btn" id="nextBtn">' + (R.n >= R.total ? "Ver resultado →" : "Siguiente →") + "</button>";
+      a = '<button class="main-btn" id="nextBtn">' + (R.quizNext ? "🧠 Pregunta de atención →" : R.n >= R.total ? "Ver resultado →" : "Siguiente →") + "</button>";
     }
     if (q.done && q.answerHTML) a = q.answerHTML + a;
     $("#answer").innerHTML = a;
 
     // tabla
-    var needTable = mode === "donde" || q.kind === "click" || q.kind === "family" || q.kind === "mystery";
+    var needTable = mode === "donde" || q.kind === "click" || q.kind === "family" || q.kind === "mystery" || q.kind === "place";
     var showTable = needTable || (q.done && t);
     $("#tableCol").hidden = !showTable;
     $(".play-area").classList.toggle("no-table", !showTable);
     if (showTable) {
       var colors = (mode === "donde" && S.opts.colors) || (!needTable && S.opts.colors);
-      var view = q.kind === "click" && mode === "posicion" && !q.done ? "blank" : "symbols";
-      var active = mode === "donde" ? function (e) { return l.ids.indexOf(e.z) >= 0; }
+      var view = (q.kind === "click" && mode === "posicion" && !q.done) || q.kind === "place" ? "blank" : "symbols";
+      var active = q.kind === "place" ? function () { return true; } : mode === "donde" ? function (e) { return l.ids.indexOf(e.z) >= 0; }
         : q.kind === "click" ? function (e) { return !!e.group; }
           : q.kind === "family" || q.kind === "mystery" ? function (e) { return l.ids.indexOf(e.z) >= 0 && !e.unknown; }
             : function () { return true; };
@@ -233,7 +259,7 @@
       if (q.kind === "family") { marks = Object.assign({}, q.marks); if (!q.done) q.sel.forEach(function (z) { marks[z] = "sel"; }); }
       var tb = $("#gameTable");
       tb.className = "ptable" + (colors ? "" : " nocolor");
-      tb.innerHTML = tableHTML({ view: view, colors: colors, active: active, locked: q.done && mode !== "donde", marks: marks });
+      tb.innerHTML = tableHTML({ view: view, colors: colors, active: active, locked: q.done && mode !== "donde", marks: marks, reveal: (R.placed || []).concat(q.done && q.t ? [q.t] : []) });
       $("#legend").innerHTML = colors ? legendHTML() : "";
     }
     $("#ficha").innerHTML = R.ficha || "";
@@ -258,9 +284,10 @@
       '<div class="tile f-' + t.fam + '"><span class="z">' + t.z + '</span><span class="s">' + t.sym + '</span><span class="n">' + esc(t.name) + "</span></div>" +
       '<ul class="facts"><li><span>Grupo</span><b>' + (t.group || "— (bloque f)") + "</b></li><li><span>Periodo</span><b>" + t.period + "</b></li>" +
       "<li><span>Familia</span><b>" + fam.label + "</b></li><li><span>Tipo</span><b>" + (t.unknown ? "por confirmar" : t.type) + "</b></li>" +
-      (t.valence ? "<li><span>Electrones de valencia</span><b>" + t.valence + "</b></li>" : "") + "</ul>" +
+      (t.valence ? "<li><span>Electrones de valencia</span><b>" + t.valence + "</b></li>" : "") +
+      (R && (R.mode === "config" || R.mode === "escribe") ? '<li class="cfg-li"><span>Configuración</span><b>' + CFG.str(t.z, false) + "</b></li>" : "") + "</ul>" +
       (LATIN[t.z] ? '<p class="fact">Su símbolo viene del latín <i>' + LATIN[t.z] + "</i>.</p>" : "") +
-      (t.fact ? '<p class="fact">' + esc(t.fact) + "</p>" : "") +
+      factHTML(t) +
       (window.COMICS && COMICS[t.z] ? '<button class="ghost-btn comic-btn" data-comic="' + t.z + '">📖 Leer su cómic' + (S.comics[t.z] && S.comics[t.z].done ? " (ya leído)" : "") + "</button>" : "");
   }
 
@@ -301,6 +328,13 @@
   $("#gameTable").addEventListener("click", function (e) {
     var b = e.target.closest(".el"); if (!b || b.disabled || !R || R.q.done) return;
     var z = +b.dataset.z, q = R.q, t = Z[q.t], c = Z[z];
+    if (q.kind === "place") {
+      var okp = z === q.t;
+      q.marks = {}; q.marks[q.t] = okp ? "ok" : "target"; if (!okp) q.marks[z] = "ko";
+      if (okp) { R.placed = (R.placed || []).concat([q.t]); R.hits = (R.hits || 0) + 1; if (R.hits % 5 === 0) R.quizNext = true; }
+      finish(okp, t, (okp ? "¡Bien colocado! " : (c.group ? "Has pulsado la casilla del grupo " + c.group + ", periodo " + c.period + ". " : "Has pulsado una casilla del bloque f. ")) + CFG.explain(t));
+      return;
+    }
     if (q.kind === "click") {
       var ok = z === q.t;
       q.marks = {}; q.marks[q.t] = ok ? "ok" : "target"; if (!ok) q.marks[z] = "ko";
@@ -326,11 +360,25 @@
     }
   });
 
+  document.addEventListener("dragstart", function (e) { if (e.target.id === "cfgCard") e.dataTransfer.setData("text/plain", "cfg"); });
+  $("#gameTable").addEventListener("dragover", function (e) { if (R && R.q && R.q.kind === "place" && !R.q.done && e.target.closest(".el")) e.preventDefault(); });
+  $("#gameTable").addEventListener("drop", function (e) { var b = e.target.closest(".el"); if (!b) return; e.preventDefault(); b.click(); });
+
   $("#answer").addEventListener("click", function (e) {
     if (!R) return;
     var q = R.q, t = q.t ? Z[q.t] : null, b;
-    if ((b = e.target.closest("#nextBtn"))) { if (R.n >= R.total) endRound(); else newQ(); return; }
+    if ((b = e.target.closest("#nextBtn"))) { if (R.n >= R.total && !R.quizNext) endRound(); else newQ(); return; }
     if (q.done) return;
+    if ((b = e.target.closest("[data-att]"))) {
+      var za = +b.dataset.att, oka = za === q.t, sta = mstat("config"), la = P.levels[R.level];
+      q.done = true;
+      q.answerHTML = q.options.map(function (o) { return '<button class="opt-btn ' + (o === q.t ? "right" : o === za ? "wrong" : "") + '" disabled>' + Z[o].sym + " · " + esc(Z[o].name) + "</button>"; }).join("") + '<div style="flex-basis:100%"></div>';
+      if (oka) { sta.attOk = (sta.attOk || 0) + 1; R.attOk = (R.attOk || 0) + 1; R.score += la.correct; S.points += la.correct; play("ok"); }
+      else { sta.attKo = (sta.attKo || 0) + 1; R.attKo = (R.attKo || 0) + 1; play("ko"); }
+      R.ficha = '<div class="res ' + (oka ? "ok" : "ko") + '">' + (oka ? "✅ ¡Muy atento! +" + la.correct + " puntos" : "❌ Era " + art(Z[q.t]) + " (" + Z[q.t].sym + ").") + '</div><p class="fact">' + esc(attText(q.t)) + "</p>";
+      renderTop(); save(); renderGame();
+      return;
+    }
     if ((b = e.target.closest("[data-opt]"))) {
       var z = +b.dataset.opt, ok = z === q.t;
       q.answerHTML = q.options.map(function (o) { return '<button class="opt-btn ' + (o === q.t ? "right" : o === z ? "wrong" : "") + '" disabled>' + esc(Z[o].name) + "</button>"; }).join("") + '<div style="flex-basis:100%"></div>';
@@ -360,6 +408,7 @@
   });
   $("#answer").addEventListener("submit", function (e) {
     e.preventDefault();
+    if (R.q.kind === "write") { checkWrite(); return; }
     var q = R.q, t = Z[q.t], v = $("#ansInput").value.trim();
     if (!v) return;
     var ok = v === t.sym, almost = !ok && v.toLowerCase() === t.sym.toLowerCase();
@@ -368,6 +417,21 @@
       ? "Casi: se escribe «" + t.sym + "». La primera letra va en mayúscula y la segunda en minúscula."
       : "El símbolo del " + t.name.toLowerCase() + " es «" + t.sym + "».");
   });
+
+  function checkWrite() {
+    var q = R.q, t = Z[q.t], v = $("#cfgInput").value.trim();
+    if (!v) return;
+    var r = CFG.check(t.z, v);
+    if (r.valid === false) { toast(r.msg); return; } // formato no válido: no cuenta como error
+    q.answerHTML = '<p class="cfg-answer">Has escrito: <b>' + esc(v) + "</b><br>Correcta: <b>" + CFG.str(t.z, t.z <= 36) + "</b>" + (t.z <= 36 && t.z > 2 ? " · abreviada: <b>" + CFG.str(t.z, false) + "</b>" : "") + "</p>";
+    finish(r.ok, t, r.msg + (CFG.isException(t.z) ? " El " + t.name.toLowerCase() + " es una de las excepciones al orden de llenado." : ""));
+  }
+  function attText(z) { return (window.CFG_TEXTS && CFG_TEXTS[z] && CFG_TEXTS[z].s) || Z[z].fact || (window.COMICS && COMICS[z] && COMICS[z].s) || ""; }
+  function attQuestion(z) { return (window.CFG_TEXTS && CFG_TEXTS[z] && CFG_TEXTS[z].q) || "¿De qué elemento has leído esto? «" + attText(z) + "»"; }
+  function factHTML(t) {
+    if (R && R.mode === "config") { var tx = attText(t.z); return tx ? '<p class="fact attn"><b>Lee con atención</b> (cada 5 aciertos hay una pregunta): ' + esc(tx) + "</p>" : ""; }
+    return t.fact ? '<p class="fact">' + esc(t.fact) + "</p>" : "";
+  }
 
   function checkFamily() {
     var q = R.q, l = P.levels[R.level], fam = q.fam;
@@ -562,6 +626,8 @@
       totOk += m.ok; totKo += m.ko; played.push(k);
       rows.push([MODES[k].name, pl(m.rounds, "ronda terminada", "rondas terminadas") + " · " + pl(m.ok, "acierto", "aciertos") + " · " + pl(m.ko, "error", "errores") + " · " + pct(m.ok, m.ok + m.ko) + " %"]);
     });
+    var cf = S.modes.config;
+    if (cf && (cf.attOk || cf.attKo)) rows.push(["Preguntas de atención (configuración)", pl(cf.attOk || 0, "acierto", "aciertos") + " · " + pl(cf.attKo || 0, "error", "errores")]);
     var d = S.modes.donde;
     if (d && Object.keys(d.best).length) rows.push(["Récord en ¿Dónde está?", ["easy", "medium", "hard"].filter(function (k) { return d.best[k] != null; }).map(function (k) { return P.levels[k].name + ": " + d.best[k]; }).join(" · ")]);
 
